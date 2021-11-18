@@ -16,7 +16,11 @@ class BallToss extends StatelessWidget {
       title: 'Ball Toss',
       theme: ThemeData(
         scaffoldBackgroundColor: Colors.black,
-        fontFamily: 'Georgia',
+        appBarTheme: AppBarTheme(
+          color: Colors.grey[900],
+        ), //Colors.blue[900]),
+        canvasColor: Colors.grey[900],
+        fontFamily: 'Roboto',
       ),
       home: const HomePage(),
     );
@@ -31,12 +35,17 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  double _ballSize = 30;
-  Color _ballColor = Colors.blue;
+  final double _ballSize = 40;
+  final Color _ballColor = Colors.blue;
+  final double _sensitivity = 5.0;
+  final double _movementThreshhold = 150.0;
   int _currentScore = 0;
-  double _ballX = 150;
-  double _ballY = 150;
-  List<int> _startAccl = [];
+  List<int> _startGyro = [];
+  late double _centerX;
+  late double _centerY;
+  late double _ballX;
+  late double _ballY;
+  late double _fieldSize;
 
   String _deviceName = 'Unknown';
   double _voltage = -1;
@@ -45,15 +54,29 @@ class _HomePageState extends State<HomePage> {
   String _event = '';
   String _button = 'not pressed';
   bool connected = false;
-
-  // the name of the eSense device to connect to -- change this to your own device.
   String eSenseName = 'eSense-0151';
 
   @override
   void initState() {
     super.initState();
-    _listenToESense();
-    _connectToESense();
+    _setUpESense();
+  }
+
+  Future _setUpESense() async {
+    await _listenToESense();
+    await _connectToESense();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _fieldSize = MediaQuery.of(context).size.width - 30;
+    _centerX = (_fieldSize / 2);
+    _centerY = (_fieldSize / 2);
+    print(_centerX);
+    print(_centerY);
+    _ballX = _centerX;
+    _ballY = _centerY;
   }
 
   Future _listenToESense() async {
@@ -162,7 +185,7 @@ class _HomePageState extends State<HomePage> {
       if (!set) {
         set = true;
         print("Setting");
-        _startAccl = event.gyro!;
+        _startGyro = event.gyro!;
       }
       setNewPosition(event, event.gyro!);
     });
@@ -172,19 +195,21 @@ class _HomePageState extends State<HomePage> {
   }
 
   void setNewPosition(SensorEvent event, List<int> newData) {
-    if (abs(newData[0] - _startAccl[0]) < 150) {
+    if (abs(newData[0] - _startGyro[0]) < _movementThreshhold) {
       print("no Change");
       return;
     }
-    if (newData[0] > _startAccl[0]) {
+    if (newData[0] > _startGyro[0]) {
       print("Right");
-    } else if (newData[0] < _startAccl[0]) {
+    } else if (newData[0] < _startGyro[0]) {
       print("Left");
     }
     setState(() {
       _event = event.toString();
-      _ballX = 150 + (newData[0] - _startAccl[0]).toDouble() / 20.0;
-      _ballY = 150 + (newData[2] - _startAccl[2]).toDouble() / 20.0;
+      _ballX = _centerX +
+          (newData[0] - _startGyro[0]).toDouble() / (100 / _sensitivity);
+      _ballY = _centerY +
+          (newData[2] - _startGyro[2]).toDouble() / (100 / _sensitivity);
     });
     _checkHit();
   }
@@ -218,33 +243,44 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    double _fieldSize = MediaQuery.of(context).size.width - 30;
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Ball Toss'),
+      ),
+      drawer: Drawer(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 15.0),
+          child: ListView(
+            children: [
+              Text(
+                'eSense Device Status: \t$_deviceStatus',
+                style: const TextStyle(color: Colors.white),
+              ),
+              Text(
+                'eSense Device Name: \t$_deviceName',
+                style: const TextStyle(color: Colors.white),
+              ),
+              Text(
+                'eSense Battery Level: \t$_voltage',
+                style: const TextStyle(color: Colors.white),
+              ),
+              Text(
+                'eSense Button Event: \t$_button',
+                style: const TextStyle(color: Colors.white),
+              ),
+              const Text(''),
+              Text(
+                _event,
+                style: const TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+        ),
+      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            Text(
-              'eSense Device Status: \t$_deviceStatus',
-              style: const TextStyle(color: Colors.white),
-            ),
-            // Text(
-            //   'eSense Device Name: \t$_deviceName',
-            //   style: const TextStyle(color: Colors.white),
-            // ),
-            // Text(
-            //   'eSense Battery Level: \t$_voltage',
-            //   style: const TextStyle(color: Colors.white),
-            // ),
-            // Text(
-            //   'eSense Button Event: \t$_button',
-            //   style: const TextStyle(color: Colors.white),
-            // ),
-            // Text(''),
-            // Text(
-            //   '$_event',
-            //   style: const TextStyle(color: Colors.white),
-            // ),
             Text(
               'Score: $_currentScore',
               style: const TextStyle(
@@ -261,8 +297,8 @@ class _HomePageState extends State<HomePage> {
                 ),
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 100),
-                  left: _ballX,
-                  top: _ballY,
+                  left: _ballX - (_ballSize / 2),
+                  top: _ballY - (_ballSize / 2),
                   child: Container(
                     width: _ballSize,
                     height: _ballSize,
@@ -286,6 +322,7 @@ class _HomePageState extends State<HomePage> {
                 ? _startListenToSensorEvents
                 : _pauseListenToSensorEvents,
         tooltip: 'Listen to eSense sensors',
+        backgroundColor: Colors.blue[900],
         child: (!sampling)
             ? const Icon(Icons.play_arrow)
             : const Icon(Icons.pause),
