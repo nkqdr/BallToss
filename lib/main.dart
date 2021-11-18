@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:esense_flutter/esense.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const BallToss());
@@ -47,6 +48,8 @@ final List<Color> colors = [
   Colors.red
 ];
 
+const String highScoreKey = "HIGH_SCORE";
+
 class _HomePageState extends State<HomePage> {
   final double _ballSize = 40;
   final double _sensitivity = 5.0;
@@ -57,6 +60,7 @@ class _HomePageState extends State<HomePage> {
   List<int> _startGyro = [];
   bool _isImmutable = false;
   //bool _isGameOver = false;
+  late int _highScore;
   late double _centerX;
   late double _centerY;
   late double _ballX;
@@ -81,6 +85,9 @@ class _HomePageState extends State<HomePage> {
   Future _setUpESense() async {
     await _listenToESense();
     await _connectToESense();
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    var highScore = prefs.getInt(highScoreKey);
+    setState(() => _highScore = highScore ?? 0);
   }
 
   @override
@@ -89,8 +96,6 @@ class _HomePageState extends State<HomePage> {
     _fieldSize = MediaQuery.of(context).size.width - 30;
     _centerX = (_fieldSize / 2);
     _centerY = (_fieldSize / 2);
-    print(_centerX);
-    print(_centerY);
     _ballX = _centerX;
     _ballY = _centerY;
   }
@@ -235,7 +240,7 @@ class _HomePageState extends State<HomePage> {
     if (_isImmutable) {
       return;
     }
-    if (0 <= _ballX + _ballY && _ballX + _ballY <= 150) {
+    if (0 <= _ballX + _ballY && _ballX + _ballY <= _centerX) {
       if (_ballColor == Colors.blue) {
         setState(() => _currentScore++);
         _setImmutable(_immutableDuration);
@@ -244,7 +249,8 @@ class _HomePageState extends State<HomePage> {
         _pauseListenToSensorEvents();
         _showGameOverDialog();
       }
-    } else if (0 <= _ballX + (300 - _ballY) && _ballX + (300 - _ballY) <= 150) {
+    } else if (0 <= _ballX + (_fieldSize - _ballY) &&
+        _ballX + (_fieldSize - _ballY) <= _centerX) {
       if (_ballColor == Colors.yellow) {
         setState(() => _currentScore++);
         _setImmutable(_immutableDuration);
@@ -253,7 +259,8 @@ class _HomePageState extends State<HomePage> {
         _pauseListenToSensorEvents();
         _showGameOverDialog();
       }
-    } else if (0 <= (300 - _ballX) + _ballY && (300 - _ballX) + _ballY <= 150) {
+    } else if (0 <= (_fieldSize - _ballX) + _ballY &&
+        (_fieldSize - _ballX) + _ballY <= _centerX) {
       if (_ballColor == Colors.green) {
         setState(() => _currentScore++);
         _setImmutable(_immutableDuration);
@@ -262,8 +269,8 @@ class _HomePageState extends State<HomePage> {
         _pauseListenToSensorEvents();
         _showGameOverDialog();
       }
-    } else if (0 <= (300 - _ballX) + (300 - _ballY) &&
-        (300 - _ballX) + (300 - _ballY) <= 150) {
+    } else if (0 <= (_fieldSize - _ballX) + (_fieldSize - _ballY) &&
+        (_fieldSize - _ballX) + (_fieldSize - _ballY) <= _centerX) {
       if (_ballColor == Colors.red) {
         setState(() => _currentScore++);
         _setImmutable(_immutableDuration);
@@ -384,7 +391,14 @@ class _HomePageState extends State<HomePage> {
         builder: (BuildContext context) {
           return AlertDialog(
             title: const Center(child: Text('Game Over')),
-            content: Text('Score: $_currentScore'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Score: $_currentScore'),
+                Text('High-Score: $_highScore'),
+              ],
+            ),
             actions: [
               TextButton(
                 onPressed: () {
@@ -395,6 +409,11 @@ class _HomePageState extends State<HomePage> {
             ],
           );
         });
+    if (_currentScore > _highScore) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(highScoreKey, _currentScore);
+      setState(() => _highScore = _currentScore);
+    }
     _resetGame();
   }
 
