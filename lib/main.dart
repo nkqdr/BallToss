@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:esense_flutter/esense.dart';
 import 'package:flutter/material.dart';
 
@@ -9,7 +10,6 @@ void main() {
 class BallToss extends StatelessWidget {
   const BallToss({Key? key}) : super(key: key);
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -19,6 +19,12 @@ class BallToss extends StatelessWidget {
         appBarTheme: AppBarTheme(
           color: Colors.grey[900],
         ), //Colors.blue[900]),
+        dialogTheme: const DialogTheme(
+          backgroundColor: Color.fromRGBO(33, 33, 33, 1),
+          titleTextStyle: TextStyle(
+              fontSize: 22, fontWeight: FontWeight.bold, color: Colors.red),
+          contentTextStyle: TextStyle(color: Colors.white),
+        ),
         canvasColor: Colors.grey[900],
         fontFamily: 'Roboto',
       ),
@@ -34,13 +40,23 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
+final List<Color> colors = [
+  Colors.blue,
+  Colors.green,
+  Colors.yellow,
+  Colors.red
+];
+
 class _HomePageState extends State<HomePage> {
   final double _ballSize = 40;
-  final Color _ballColor = Colors.blue;
   final double _sensitivity = 5.0;
   final double _movementThreshhold = 150.0;
+  final Duration _immutableDuration = const Duration(milliseconds: 500);
+  Color _ballColor = Colors.blue;
   int _currentScore = 0;
   List<int> _startGyro = [];
+  bool _isImmutable = false;
+  //bool _isGameOver = false;
   late double _centerX;
   late double _centerY;
   late double _ballX;
@@ -194,15 +210,16 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Future _setImmutable(Duration duration) async {
+    setState(() => _isImmutable = true);
+    await Future.delayed(duration);
+    setState(() => _isImmutable = false);
+  }
+
   void setNewPosition(SensorEvent event, List<int> newData) {
     if (abs(newData[0] - _startGyro[0]) < _movementThreshhold) {
       print("no Change");
       return;
-    }
-    if (newData[0] > _startGyro[0]) {
-      print("Right");
-    } else if (newData[0] < _startGyro[0]) {
-      print("Left");
     }
     setState(() {
       _event = event.toString();
@@ -215,15 +232,46 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _checkHit() {
+    if (_isImmutable) {
+      return;
+    }
     if (0 <= _ballX + _ballY && _ballX + _ballY <= 150) {
-      print("Hit blue!");
+      if (_ballColor == Colors.blue) {
+        setState(() => _currentScore++);
+        _setImmutable(_immutableDuration);
+        setState(() => _ballColor = _getRandomColor());
+      } else {
+        _pauseListenToSensorEvents();
+        _showGameOverDialog();
+      }
     } else if (0 <= _ballX + (300 - _ballY) && _ballX + (300 - _ballY) <= 150) {
-      print("Hit yellow!");
+      if (_ballColor == Colors.yellow) {
+        setState(() => _currentScore++);
+        _setImmutable(_immutableDuration);
+        setState(() => _ballColor = _getRandomColor());
+      } else {
+        _pauseListenToSensorEvents();
+        _showGameOverDialog();
+      }
     } else if (0 <= (300 - _ballX) + _ballY && (300 - _ballX) + _ballY <= 150) {
-      print("Hit green!");
+      if (_ballColor == Colors.green) {
+        setState(() => _currentScore++);
+        _setImmutable(_immutableDuration);
+        setState(() => _ballColor = _getRandomColor());
+      } else {
+        _pauseListenToSensorEvents();
+        _showGameOverDialog();
+      }
     } else if (0 <= (300 - _ballX) + (300 - _ballY) &&
         (300 - _ballX) + (300 - _ballY) <= 150) {
-      print("Hit red!");
+      if (_ballColor == Colors.red) {
+        setState(() => _currentScore++);
+        _setImmutable(_immutableDuration);
+        setState(() => _ballColor = _getRandomColor());
+      } else {
+        _pauseListenToSensorEvents();
+        _showGameOverDialog();
+      }
     }
   }
 
@@ -330,8 +378,46 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future _showGameOverDialog() async {
+    await showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Center(child: Text('Game Over')),
+            content: Text('Score: $_currentScore'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Try again!'),
+              )
+            ],
+          );
+        });
+    _resetGame();
+  }
+
   int abs(int value) {
     return value < 0 ? -value : value;
+  }
+
+  Color _getRandomColor() {
+    var rng = Random();
+    Color color;
+    do {
+      color = colors[rng.nextInt(4)];
+    } while (color == _ballColor);
+    return color;
+  }
+
+  void _resetGame() {
+    print("Reset");
+    setState(() {
+      _ballX = _centerX;
+      _ballY = _centerY;
+      _currentScore = 0;
+    });
   }
 }
 
