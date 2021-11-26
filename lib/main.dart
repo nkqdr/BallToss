@@ -1,15 +1,30 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:ball_toss/config.dart';
+import 'package:ball_toss/settings_page.dart';
 import 'package:esense_flutter/esense.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
-  runApp(const BallToss());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  var prefs = await SharedPreferences.getInstance();
+  double? sensitivity = prefs.getDouble(Config.sensitivityKey);
+  double? ballSize = prefs.getDouble(Config.ballSizeKey);
+  runApp(BallToss(
+    sensitivity: sensitivity ?? 5,
+    ballSize: ballSize ?? 40,
+  ));
 }
 
 class BallToss extends StatelessWidget {
-  const BallToss({Key? key}) : super(key: key);
+  final double sensitivity;
+  final double ballSize;
+  const BallToss({
+    Key? key,
+    required this.sensitivity,
+    required this.ballSize,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -17,6 +32,10 @@ class BallToss extends StatelessWidget {
       title: 'Ball Toss',
       theme: ThemeData(
         scaffoldBackgroundColor: Colors.black,
+        textTheme: Theme.of(context).textTheme.apply(
+              bodyColor: Colors.white,
+              displayColor: Colors.white,
+            ),
         appBarTheme: AppBarTheme(
           color: Colors.grey[900],
         ), //Colors.blue[900]),
@@ -29,13 +48,22 @@ class BallToss extends StatelessWidget {
         canvasColor: Colors.grey[900],
         fontFamily: 'Roboto',
       ),
-      home: const HomePage(),
+      home: HomePage(
+        sensitivity: sensitivity,
+        ballSize: ballSize,
+      ),
     );
   }
 }
 
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  final double sensitivity;
+  final double ballSize;
+  const HomePage({
+    Key? key,
+    required this.sensitivity,
+    required this.ballSize,
+  }) : super(key: key);
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -48,19 +76,17 @@ final List<Color> colors = [
   Colors.red
 ];
 
-const String highScoreKey = "HIGH_SCORE";
-
 class _HomePageState extends State<HomePage> {
-  final double _ballSize = 40;
-  final double _sensitivity = 5.0;
-  final double _movementThreshhold = 150.0;
   final Duration _immutableDuration = const Duration(milliseconds: 500);
+  final double _movementThreshhold = 150.0;
+  late double _ballSize;
+  late double _sensitivity;
+  late int _highScore;
   Color _ballColor = Colors.blue;
   int _currentScore = 0;
   List<int> _startGyro = [];
   bool _isImmutable = false;
   //bool _isGameOver = false;
-  late int _highScore;
   late double _centerX;
   late double _centerY;
   late double _ballX;
@@ -79,6 +105,8 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _sensitivity = widget.sensitivity;
+    _ballSize = widget.ballSize;
     _setUpESense();
   }
 
@@ -86,7 +114,7 @@ class _HomePageState extends State<HomePage> {
     await _listenToESense();
     await _connectToESense();
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    var highScore = prefs.getInt(highScoreKey);
+    var highScore = prefs.getInt(Config.highScoreKey);
     setState(() => _highScore = highScore ?? 0);
   }
 
@@ -160,7 +188,6 @@ class _HomePageState extends State<HomePage> {
                 : 'not pressed';
             break;
           case AccelerometerOffsetRead:
-            print('Here');
             break;
           case AdvertisementAndConnectionIntervalRead:
             // TODO
@@ -205,7 +232,7 @@ class _HomePageState extends State<HomePage> {
     subscription = ESenseManager().sensorEvents.listen((event) {
       if (!set) {
         set = true;
-        print("Setting");
+
         _startGyro = event.gyro!;
       }
       setNewPosition(event, event.gyro!);
@@ -223,7 +250,6 @@ class _HomePageState extends State<HomePage> {
 
   void setNewPosition(SensorEvent event, List<int> newData) {
     if (abs(newData[0] - _startGyro[0]) < _movementThreshhold) {
-      print("no Change");
       return;
     }
     setState(() {
@@ -241,44 +267,27 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     if (0 <= _ballX + _ballY && _ballX + _ballY <= _centerX) {
-      if (_ballColor == Colors.blue) {
-        setState(() => _currentScore++);
-        _setImmutable(_immutableDuration);
-        setState(() => _ballColor = _getRandomColor());
-      } else {
-        _pauseListenToSensorEvents();
-        _showGameOverDialog();
-      }
+      _handleHit(Colors.blue);
     } else if (0 <= _ballX + (_fieldSize - _ballY) &&
         _ballX + (_fieldSize - _ballY) <= _centerX) {
-      if (_ballColor == Colors.yellow) {
-        setState(() => _currentScore++);
-        _setImmutable(_immutableDuration);
-        setState(() => _ballColor = _getRandomColor());
-      } else {
-        _pauseListenToSensorEvents();
-        _showGameOverDialog();
-      }
+      _handleHit(Colors.yellow);
     } else if (0 <= (_fieldSize - _ballX) + _ballY &&
         (_fieldSize - _ballX) + _ballY <= _centerX) {
-      if (_ballColor == Colors.green) {
-        setState(() => _currentScore++);
-        _setImmutable(_immutableDuration);
-        setState(() => _ballColor = _getRandomColor());
-      } else {
-        _pauseListenToSensorEvents();
-        _showGameOverDialog();
-      }
+      _handleHit(Colors.green);
     } else if (0 <= (_fieldSize - _ballX) + (_fieldSize - _ballY) &&
         (_fieldSize - _ballX) + (_fieldSize - _ballY) <= _centerX) {
-      if (_ballColor == Colors.red) {
-        setState(() => _currentScore++);
-        _setImmutable(_immutableDuration);
-        setState(() => _ballColor = _getRandomColor());
-      } else {
-        _pauseListenToSensorEvents();
-        _showGameOverDialog();
-      }
+      _handleHit(Colors.red);
+    }
+  }
+
+  void _handleHit(Color color) {
+    if (_ballColor == color) {
+      setState(() => _currentScore++);
+      _setImmutable(_immutableDuration);
+      setState(() => _ballColor = _getRandomColor());
+    } else {
+      _pauseListenToSensorEvents();
+      _showGameOverDialog();
     }
   }
 
@@ -307,26 +316,47 @@ class _HomePageState extends State<HomePage> {
           padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 15.0),
           child: ListView(
             children: [
-              Text(
-                'eSense Device Status: \t$_deviceStatus',
-                style: const TextStyle(color: Colors.white),
+              DrawerHeader(
+                decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    color: Colors.black26),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'eSense data:',
+                      style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(
+                      height: 10,
+                    ),
+                    Text('eSense Device Status: \t$_deviceStatus'),
+                    Text('eSense Device Name: \t$_deviceName'),
+                    Text('eSense Battery Level: \t$_voltage'),
+                    Text('eSense Button Event: \t$_button'),
+                  ],
+                ),
               ),
-              Text(
-                'eSense Device Name: \t$_deviceName',
-                style: const TextStyle(color: Colors.white),
-              ),
-              Text(
-                'eSense Battery Level: \t$_voltage',
-                style: const TextStyle(color: Colors.white),
-              ),
-              Text(
-                'eSense Button Event: \t$_button',
-                style: const TextStyle(color: Colors.white),
-              ),
-              const Text(''),
-              Text(
-                _event,
-                style: const TextStyle(color: Colors.white),
+              ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                tileColor: Colors.black26,
+                title: const Text("Settings"),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  await Navigator.of(context).push(MaterialPageRoute(
+                      builder: (BuildContext context) => const SettingsPage()));
+                  var prefs = await SharedPreferences.getInstance();
+                  setState(() {
+                    _sensitivity = prefs.getDouble(Config.sensitivityKey) ?? 5;
+                    _ballSize = prefs.getDouble(Config.ballSizeKey) ?? 40;
+                    _highScore = prefs.getInt(Config.highScoreKey) ?? 0;
+                  });
+                },
               ),
             ],
           ),
@@ -341,7 +371,6 @@ class _HomePageState extends State<HomePage> {
               style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
               ),
             ),
             Stack(
@@ -411,7 +440,7 @@ class _HomePageState extends State<HomePage> {
         });
     if (_currentScore > _highScore) {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt(highScoreKey, _currentScore);
+      await prefs.setInt(Config.highScoreKey, _currentScore);
       setState(() => _highScore = _currentScore);
     }
     _resetGame();
