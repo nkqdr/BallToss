@@ -12,6 +12,8 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   late double _currentSensitivity;
   late double _currentBallSize;
+  late String _esenseName;
+  late TextEditingController _controller;
   bool isLoading = false;
 
   @override
@@ -24,7 +26,9 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() => isLoading = true);
     var prefs = await SharedPreferences.getInstance();
     _currentSensitivity = prefs.getDouble(Config.sensitivityKey) ?? 5;
+    _esenseName = prefs.getString(Config.eSenseKey) ?? "eSense-0569";
     _currentBallSize = prefs.getDouble(Config.ballSizeKey) ?? 40;
+    _controller = TextEditingController(text: _esenseName);
     setState(() => isLoading = false);
   }
 
@@ -88,25 +92,92 @@ class _SettingsPageState extends State<SettingsPage> {
                         label: (_currentBallSize / 10).round().toString(),
                         onChanged: _handleChangeBallSize,
                       ),
-                      TextButton(
-                        onPressed: _handleResetHighScore,
-                        child: const Text(
-                          "Reset High-Score",
-                          style: TextStyle(
-                            color: Colors.red,
+                      Center(
+                        child: TextButton(
+                          onPressed: _handleResetHighScore,
+                          child: const Text(
+                            "Reset High-Score",
+                            style: TextStyle(
+                              color: Colors.red,
+                            ),
                           ),
+                          style: ButtonStyle(
+                              overlayColor: MaterialStateProperty.all(
+                            Colors.red.withOpacity(0.1),
+                          )),
                         ),
-                        style: ButtonStyle(
-                            overlayColor: MaterialStateProperty.all(
-                          Colors.red.withOpacity(0.1),
-                        )),
-                      )
+                      ),
+                      const Text(
+                        "Name of the eSense device:",
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          TextField(
+                            autocorrect: false,
+                            controller: _controller,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: Colors.grey[900], //.withOpacity(0.2),
+                              hintText: 'Enter the name of your eSense device.',
+                              border: const UnderlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _handleSaveEsenseName,
+                            child: const Text(
+                              "Save",
+                              style: TextStyle(
+                                color: Colors.blue,
+                              ),
+                            ),
+                            style: ButtonStyle(
+                                overlayColor: MaterialStateProperty.all(
+                              Colors.blue.withOpacity(0.1),
+                            )),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
               ],
       ),
     );
+  }
+
+  Future _handleSaveEsenseName() async {
+    var prefs = await SharedPreferences.getInstance();
+    prefs.setString(Config.eSenseKey, _controller.text);
+    await showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Center(child: Text("Success")),
+            titleTextStyle: Theme.of(context)
+                .dialogTheme
+                .titleTextStyle
+                ?.copyWith(color: Colors.white),
+            content: const Text("The new name has been saved successfully."),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Ok!'),
+              )
+            ],
+          );
+        });
   }
 
   Future _handleResetHighScore() async {
