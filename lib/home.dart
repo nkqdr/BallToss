@@ -266,8 +266,8 @@ class _HomePageState extends State<HomePage> {
           padding: EdgeInsets.only(
             left: 15.0,
             right: 15.0,
-            top: MediaQuery.of(context).viewPadding.top,
-            bottom: MediaQuery.of(context).viewPadding.bottom,
+            top: MediaQuery.of(context).viewPadding.top + 10,
+            bottom: MediaQuery.of(context).viewPadding.bottom + 10,
           ),
           child: Column(
             children: [

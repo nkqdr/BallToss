@@ -107,6 +107,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           )),
                         ),
                       ),
+                      const SizedBox(
+                        height: 10,
+                      ),
                       const Text(
                         "Name of the eSense device:",
                         style: TextStyle(
@@ -114,6 +117,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
+                      ),
+                      const SizedBox(
+                        height: 5,
                       ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
